@@ -18,7 +18,17 @@ def connect_db():
             password='@C0ntrolsM4nufactur!ng',
             database='intranetDB'
         )
+
+        
         cursor = conn.cursor()
+
+
+
+        # Drop existing tables
+        cursor.execute('''DROP TABLE IF EXISTS documents''')
+        cursor.execute('''DROP TABLE IF EXISTS folders''')
+
+
         cursor.execute('''CREATE TABLE IF NOT EXISTS folders (
                           id INT AUTO_INCREMENT PRIMARY KEY,
                           foldername VARCHAR(255) UNIQUE)''')
@@ -28,6 +38,9 @@ def connect_db():
                           content TEXT,
                           folder_id INT,
                           FOREIGN KEY (folder_id) REFERENCES folders(id))''')
+        
+
+        
         conn.commit()
         logging.info("Database connected and tables created if not exists.")
         return conn
