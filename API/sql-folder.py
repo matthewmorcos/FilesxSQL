@@ -1,3 +1,4 @@
+
 import os
 import sqlite3
 import logging
@@ -23,8 +24,8 @@ def connect_db():
 
 # Event handler for file system changes
 class FileChangeHandler(FileSystemEventHandler):
-    def __init__(self, db_conn):
-        self.db_conn = db_conn
+    def __init__(self):
+        pass
 
     def on_modified(self, event):
         if not event.is_directory:
@@ -46,10 +47,12 @@ class FileChangeHandler(FileSystemEventHandler):
             with open(file_path, 'r') as file:
                 content = file.read()
             filename = os.path.basename(file_path)
-            cursor = self.db_conn.cursor()
+            conn = sqlite3.connect('documents.db')
+            cursor = conn.cursor()
             cursor.execute('''INSERT OR REPLACE INTO documents (filename, content)
                               VALUES (?, ?)''', (filename, content))
-            self.db_conn.commit()
+            conn.commit()
+            conn.close()
             logging.info(f'Updated database with file: {filename}')
         except Exception as e:
             logging.error(f"Failed to update database for file {file_path}: {e}")
@@ -57,9 +60,11 @@ class FileChangeHandler(FileSystemEventHandler):
     def delete_from_db(self, file_path):
         try:
             filename = os.path.basename(file_path)
-            cursor = self.db_conn.cursor()
+            conn = sqlite3.connect('documents.db')
+            cursor = conn.cursor()
             cursor.execute('''DELETE FROM documents WHERE filename = ?''', (filename,))
-            self.db_conn.commit()
+            conn.commit()
+            conn.close()
             logging.info(f'Removed file from database: {filename}')
         except Exception as e:
             logging.error(f"Failed to delete from database for file {file_path}: {e}")
@@ -80,12 +85,7 @@ def get_documents():
 # Main function to set up the observer
 def main():
     path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Documents')
-    db_conn = connect_db()
-    if db_conn is None:
-        logging.error("Failed to connect to the database. Exiting.")
-        return
-
-    event_handler = FileChangeHandler(db_conn)
+    event_handler = FileChangeHandler()
     observer = Observer()
     observer.schedule(event_handler, path, recursive=False)
     observer.start()
@@ -103,4 +103,3 @@ if __name__ == "__main__":
     documents = get_documents()
     for filename, content in documents:
         print(f'Filename: {filename}\nContent:\n{content}\n')
-
