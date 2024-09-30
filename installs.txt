@@ -3,3 +3,6 @@ https://www.python.org/downloads/
 
 pip install watchdog
 
+ pip install mysql-connector-python   
+
+ 
