@@ -114,6 +114,7 @@ class FileChangeHandler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
             logging.info(f'Created directory: {event.src_path}')
+
         else:
             logging.info(f'Created file: {event.src_path}')
             self.db_queue.put(('update', (event.src_path,)))
