@@ -13,12 +13,18 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s', dat
 def connect_db():
     try:
         conn = mysql.connector.connect(
-             host='localhost',
+            host='localhost',
             user='root',
             password='@C0ntrolsM4nufactur!ng',
             database='intranetDB'
         )
         cursor = conn.cursor()
+        
+        # Drop existing tables
+        cursor.execute('''DROP TABLE IF EXISTS documents''')
+        cursor.execute('''DROP TABLE IF EXISTS folders''')
+        
+        # Create tables with the correct schema
         cursor.execute('''CREATE TABLE IF NOT EXISTS folders (
                           id INT AUTO_INCREMENT PRIMARY KEY,
                           foldername VARCHAR(255) UNIQUE)''')
@@ -29,7 +35,7 @@ def connect_db():
                           folder_id INT,
                           FOREIGN KEY (folder_id) REFERENCES folders(id))''')
         conn.commit()
-        logging.info("Database connected and tables created if not exists.")
+        logging.info("Database connected and tables created.")
         return conn
     except mysql.connector.Error as e:
         logging.error(f"Database connection failed: {e}")
@@ -51,21 +57,16 @@ def update_db(db_conn, file_path):
         with open(file_path, 'r') as file:
             content = file.read()
         filename = os.path.basename(file_path)
-        foldername = os.path.basename(os.path.dirname(file_path))
+        folder_path = os.path.dirname(file_path)
+        folder_id = get_or_create_folder(db_conn, folder_path)
+
         cursor = db_conn.cursor()
-
-        # Insert or get the folder_id
-        cursor.execute('''INSERT IGNORE INTO folders (foldername) VALUES (%s)''', (foldername,))
-        cursor.execute('''SELECT id FROM folders WHERE foldername = %s''', (foldername,))
-        folder_id = cursor.fetchone()[0]
-
-        # Insert or replace the document
         cursor.execute('''INSERT INTO documents (filename, content, folder_id)
                           VALUES (%s, %s, %s)
                           ON DUPLICATE KEY UPDATE content = VALUES(content), folder_id = VALUES(folder_id)''', 
                           (filename, content, folder_id))
         db_conn.commit()
-        logging.info(f'Updated database with file: {filename} in folder: {foldername}')
+        logging.info(f'Updated database with file: {filename} in folder: {folder_path}')
     except Exception as e:
         logging.error(f"Failed to update database for file {file_path}: {e}")
 
@@ -79,6 +80,34 @@ def delete_from_db(db_conn, file_path):
         logging.info(f'Removed file from database: {filename}')
     except Exception as e:
         logging.error(f"Failed to delete from database for file {file_path}: {e}")
+
+# Get or create folder and return its ID
+def get_or_create_folder(db_conn, folder_path):
+    base_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'Documents'))
+    relative_path = os.path.relpath(folder_path, base_dir)
+    if relative_path.startswith('..'):
+        return None  # Skip folders outside the base directory
+
+    parent_id = None
+    for part in relative_path.split(os.sep):
+        cursor = db_conn.cursor()
+        cursor.execute('''INSERT IGNORE INTO folders (foldername, parent_id) VALUES (%s, %s)''', (part, parent_id))
+        cursor.close()
+
+        cursor = db_conn.cursor()
+        cursor.execute('''SELECT id FROM folders WHERE foldername = %s AND parent_id <=> %s''', (part, parent_id))
+        result = cursor.fetchone()
+        cursor.close()
+
+        if result:
+            parent_id = result[0]
+        else:
+            cursor = db_conn.cursor()
+            cursor.execute('''SELECT id FROM folders WHERE foldername = %s AND parent_id IS NULL''', (part,))
+            parent_id = cursor.fetchone()[0]
+            cursor.close()
+    db_conn.commit()
+    return parent_id
 
 # Scan folder and add existing documents to the database
 def scan_and_add_existing_files(db_conn, path):
