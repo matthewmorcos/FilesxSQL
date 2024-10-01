@@ -31,7 +31,15 @@ def connect_db():
 
         cursor.execute('''CREATE TABLE IF NOT EXISTS folders (
                           id INT AUTO_INCREMENT PRIMARY KEY,
-                          foldername VARCHAR(255) UNIQUE)''')
+                          foldername VARCHAR(255) UNIQUE,
+                          parent_folder_id INT,
+                          path TEXT NOT NULL,
+
+                          FOREIGN KEY (parent_folder_id) REFERENCES folders(id))''')
+        
+
+        
+        
         cursor.execute('''CREATE TABLE IF NOT EXISTS documents (
                           id INT AUTO_INCREMENT PRIMARY KEY,
                           filename VARCHAR(255),
@@ -64,11 +72,24 @@ def update_db(db_conn, file_path):
         filename = os.path.basename(file_path)
         reactFilename = os.path.splitext(os.path.basename(file_path))[0]
         foldername = os.path.basename(os.path.dirname(file_path))
+        folderPath = os.path.dirname(file_path)
+        parentFolder = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
+        
         reactFilePath = file_path.replace('\\', '\\\\')
         cursor = db_conn.cursor()
 
+        # Get the parent folder ID
+        cursor.execute('''SELECT id FROM folders WHERE foldername = %s''', (parentFolder,))
+        parent_folder_id = cursor.fetchone()
+        if parent_folder_id:
+            parent_folder_id = parent_folder_id[0]
+        else:
+            parent_folder_id = None
+
         # Insert or get the folder_id
-        cursor.execute('''INSERT IGNORE INTO folders (foldername) VALUES (%s)''', (foldername,))
+        cursor.execute('''INSERT INTO folders (foldername, parent_folder_id, path) 
+                          VALUES (%s, %s, %s)
+                          ON DUPLICATE KEY UPDATE parent_folder_id = VALUES(parent_folder_id), path =VALUES(path)''', (foldername, parent_folder_id, folderPath))
         cursor.execute('''SELECT id FROM folders WHERE foldername = %s''', (foldername,))
         folder_id = cursor.fetchone()[0]
 
@@ -77,6 +98,7 @@ def update_db(db_conn, file_path):
                           VALUES (%s, %s, %s)
                           ON DUPLICATE KEY UPDATE path = VALUES(path), folder_id = VALUES(folder_id)''', 
                           (reactFilename, reactFilePath, folder_id))
+
         db_conn.commit()
         logging.info(f'Updated database with file: {filename} in folder: {foldername}')
     except Exception as e:
@@ -142,10 +164,10 @@ class FileChangeHandler(FileSystemEventHandler):
 def get_documents():
     try:
         conn = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password='@C0ntrolsM4nufactur!ng',
-            database='intranetDB'
+             host='???',
+            user='???',
+            password='???',
+            database='???'
         )
         cursor = conn.cursor()
         cursor.execute('''SELECT d.filename, d.path, f.foldername 
