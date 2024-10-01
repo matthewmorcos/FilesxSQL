@@ -13,10 +13,10 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s', dat
 def connect_db():
     try:
         conn = mysql.connector.connect(
-             host='???',
-            user='???',
-            password='???',
-            database='???'
+             host='localhost',
+            user='root',
+            password='@C0ntrolsM4nufactur!ng',
+            database='intranetDB'
         )
 
         
@@ -31,11 +31,12 @@ def connect_db():
 
         cursor.execute('''CREATE TABLE IF NOT EXISTS folders (
                           id INT AUTO_INCREMENT PRIMARY KEY,
-                          foldername VARCHAR(255) UNIQUE,
+                          foldername VARCHAR(255),
+                          path VARCHAR(255) NOT NULL,
                           parent_folder_id INT,
-                          path TEXT NOT NULL,
 
-                          FOREIGN KEY (parent_folder_id) REFERENCES folders(id))''')
+                          FOREIGN KEY (parent_folder_id) REFERENCES folders(id),
+                       UNIQUE (foldername, path))''')
         
 
         
@@ -66,7 +67,9 @@ def db_worker(db_conn, db_queue):
             delete_from_db(db_conn, *args)
         db_queue.task_done()
 
-# Update database with file content
+
+
+
 def update_db(db_conn, file_path):
     try:
         filename = os.path.basename(file_path)
@@ -76,10 +79,13 @@ def update_db(db_conn, file_path):
         parentFolder = os.path.basename(os.path.dirname(os.path.dirname(file_path)))
         
         reactFilePath = file_path.replace('\\', '\\\\')
+
+        parent_FolderPath = os.path.dirname(folderPath)
+
         cursor = db_conn.cursor()
 
         # Get the parent folder ID
-        cursor.execute('''SELECT id FROM folders WHERE foldername = %s''', (parentFolder,))
+        cursor.execute('''SELECT id FROM folders WHERE path = %s''', (parent_FolderPath,))
         parent_folder_id = cursor.fetchone()
         if parent_folder_id:
             parent_folder_id = parent_folder_id[0]
@@ -87,10 +93,11 @@ def update_db(db_conn, file_path):
             parent_folder_id = None
 
         # Insert or get the folder_id
-        cursor.execute('''INSERT INTO folders (foldername, parent_folder_id, path) 
+        cursor.execute('''INSERT INTO folders (foldername, path, parent_folder_id) 
                           VALUES (%s, %s, %s)
-                          ON DUPLICATE KEY UPDATE parent_folder_id = VALUES(parent_folder_id), path =VALUES(path)''', (foldername, parent_folder_id, folderPath))
-        cursor.execute('''SELECT id FROM folders WHERE foldername = %s''', (foldername,))
+                          ON DUPLICATE KEY UPDATE path = VALUES(path), parent_folder_id = VALUES(parent_folder_id)''', 
+                          (foldername, folderPath, parent_folder_id))
+        cursor.execute('''SELECT id FROM folders WHERE path = %s''', (folderPath,))
         folder_id = cursor.fetchone()[0]
 
         # Insert or replace the document
@@ -98,12 +105,10 @@ def update_db(db_conn, file_path):
                           VALUES (%s, %s, %s)
                           ON DUPLICATE KEY UPDATE path = VALUES(path), folder_id = VALUES(folder_id)''', 
                           (reactFilename, reactFilePath, folder_id))
-
         db_conn.commit()
         logging.info(f'Updated database with file: {filename} in folder: {foldername}')
     except Exception as e:
         logging.error(f"Failed to update database for file {file_path}: {e}")
-
 
 
 
@@ -164,10 +169,10 @@ class FileChangeHandler(FileSystemEventHandler):
 def get_documents():
     try:
         conn = mysql.connector.connect(
-             host='???',
-            user='???',
-            password='???',
-            database='???'
+            host='localhost',
+            user='root',
+            password='@C0ntrolsM4nufactur!ng',
+            database='intranetDB'
         )
         cursor = conn.cursor()
         cursor.execute('''SELECT d.filename, d.path, f.foldername 
