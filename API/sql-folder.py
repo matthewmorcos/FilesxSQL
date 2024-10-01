@@ -13,10 +13,10 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s', dat
 def connect_db():
     try:
         conn = mysql.connector.connect(
-             host='localhost',
-            user='root',
-            password='@C0ntrolsM4nufactur!ng',
-            database='intranetDB'
+             host='???',
+            user='???',
+            password='???',
+            database='???'
         )
 
         
@@ -169,10 +169,10 @@ class FileChangeHandler(FileSystemEventHandler):
 def get_documents():
     try:
         conn = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password='@C0ntrolsM4nufactur!ng',
-            database='intranetDB'
+            host='???',
+            user='???',
+            password='???',
+            database='???'
         )
         cursor = conn.cursor()
         cursor.execute('''SELECT d.filename, d.path, f.foldername 
@@ -184,6 +184,41 @@ def get_documents():
     except mysql.connector.Error as e:
         logging.error(f"Failed to retrieve documents from database: {e}")
         return []
+    
+
+
+
+#GETTING CHILDREN
+def get_direct_children_folders_and_files(db_conn, parent_folder_id, parent_folder_path):
+    try:
+        cursor = db_conn.cursor()
+        # Retrieve direct child folders
+        cursor.execute('''SELECT foldername, path FROM folders WHERE parent_folder_id = %s''', (parent_folder_id,))
+        folders = cursor.fetchall()
+
+        # Retrieve direct child files
+        cursor.execute('''SELECT filename, path FROM documents WHERE folder_id = %s''', (parent_folder_id,))
+        files = cursor.fetchall()
+
+        return folders, files
+    except mysql.connector.Error as e:
+        logging.error(f"Failed to retrieve direct children folders and files: {e}")
+        return [], []
+    
+
+def get_parent_folder_id(db_conn, parent_folder_path):
+    try:
+        cursor = db_conn.cursor()
+        cursor.execute('''SELECT id FROM folders WHERE path = %s''', (parent_folder_path,))
+        parent_folder_id = cursor.fetchone()
+        if parent_folder_id:
+            return parent_folder_id[0]
+        else:
+            logging.error(f"No folder found with path: {parent_folder_path}")
+            return None
+    except mysql.connector.Error as e:
+        logging.error(f"Failed to retrieve parent folder ID: {e}")
+        return None
 
 # Main function to set up the observer
 def main():
@@ -208,6 +243,23 @@ def main():
     observer.schedule(event_handler, path, recursive=True)
     observer.start()
     logging.info(f'Starting to monitor: {path}')
+
+    # Get user input for the folder path
+    user_input_path = input("Enter the folder path to retrieve connected folders and files: ")
+    user_input_path = os.path.normpath(user_input_path)
+
+    # Get the parent folder ID
+    parent_folder_id = get_parent_folder_id(db_conn, user_input_path)
+    if parent_folder_id is not None:
+        # Retrieve and print direct children folders and files
+        folders, files = get_direct_children_folders_and_files(db_conn, parent_folder_id, user_input_path)
+        print("Folders:")
+        for foldername, folderpath in folders:
+            print(f"Folder: {foldername}, Path: {folderpath}")
+        print("Files:")
+        for filename, filepath in files:
+            print(f"File: {filename}, Path: {filepath}")
+
     try:
         while True:
             pass
@@ -215,6 +267,8 @@ def main():
         observer.stop()
     observer.join()
     db_queue.join()
+
+
 
 if __name__ == "__main__":
     main()
