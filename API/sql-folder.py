@@ -13,10 +13,10 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(message)s', dat
 def connect_db():
     try:
         conn = mysql.connector.connect(
-             host='localhost',
-            user='root',
-            password='@C0ntrolsM4nufactur!ng',
-            database='intranetDB'
+             host='???',
+            user='???',
+            password='???',
+            database='???'
         )
 
         
@@ -62,6 +62,7 @@ def db_worker(db_conn, db_queue):
 def update_db(db_conn, file_path):
     try:
         filename = os.path.basename(file_path)
+        reactFilename = os.path.splitext(os.path.basename(file_path))[0]
         foldername = os.path.basename(os.path.dirname(file_path))
         reactFilePath = file_path.replace('\\', '\\\\')
         cursor = db_conn.cursor()
@@ -75,7 +76,7 @@ def update_db(db_conn, file_path):
         cursor.execute('''INSERT INTO documents (filename, path, folder_id)
                           VALUES (%s, %s, %s)
                           ON DUPLICATE KEY UPDATE path = VALUES(path), folder_id = VALUES(folder_id)''', 
-                          (filename, reactFilePath, folder_id))
+                          (reactFilename, reactFilePath, folder_id))
         db_conn.commit()
         logging.info(f'Updated database with file: {filename} in folder: {foldername}')
     except Exception as e:
