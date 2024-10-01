@@ -35,7 +35,7 @@ def connect_db():
         cursor.execute('''CREATE TABLE IF NOT EXISTS documents (
                           id INT AUTO_INCREMENT PRIMARY KEY,
                           filename VARCHAR(255),
-                          content TEXT,
+                          path TEXT NOT NULL,
                           folder_id INT,
                           FOREIGN KEY (folder_id) REFERENCES folders(id))''')
         
@@ -61,10 +61,9 @@ def db_worker(db_conn, db_queue):
 # Update database with file content
 def update_db(db_conn, file_path):
     try:
-        with open(file_path, 'r') as file:
-            content = file.read()
         filename = os.path.basename(file_path)
         foldername = os.path.basename(os.path.dirname(file_path))
+        reactFilePath = file_path.replace('\\', '\\\\')
         cursor = db_conn.cursor()
 
         # Insert or get the folder_id
@@ -73,14 +72,20 @@ def update_db(db_conn, file_path):
         folder_id = cursor.fetchone()[0]
 
         # Insert or replace the document
-        cursor.execute('''INSERT INTO documents (filename, content, folder_id)
+        cursor.execute('''INSERT INTO documents (filename, path, folder_id)
                           VALUES (%s, %s, %s)
-                          ON DUPLICATE KEY UPDATE content = VALUES(content), folder_id = VALUES(folder_id)''', 
-                          (filename, content, folder_id))
+                          ON DUPLICATE KEY UPDATE path = VALUES(path), folder_id = VALUES(folder_id)''', 
+                          (filename, reactFilePath, folder_id))
         db_conn.commit()
         logging.info(f'Updated database with file: {filename} in folder: {foldername}')
     except Exception as e:
         logging.error(f"Failed to update database for file {file_path}: {e}")
+
+
+
+
+
+        
 
 # Delete file from database
 def delete_from_db(db_conn, file_path):
@@ -142,7 +147,7 @@ def get_documents():
             database='intranetDB'
         )
         cursor = conn.cursor()
-        cursor.execute('''SELECT d.filename, d.content, f.foldername 
+        cursor.execute('''SELECT d.filename, d.path, f.foldername 
                           FROM documents d 
                           JOIN folders f ON d.folder_id = f.id''')
         documents = cursor.fetchall()
@@ -187,5 +192,5 @@ if __name__ == "__main__":
     main()
     # Example usage of get_documents function
     documents = get_documents()
-    for filename, content in documents:
-        print(f'Filename: {filename}\nContent:\n{content}\n')
+    for filename in documents:
+        print(f'Filename: {filename}\n')
