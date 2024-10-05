@@ -272,7 +272,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # Example usage of get_documents function
     documents = get_documents()
     for filename in documents:
         print(f'Filename: {filename}\n')
